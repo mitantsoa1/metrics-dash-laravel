@@ -25,7 +25,7 @@ Il inclut une **interface d'administration embarquée de mappage dynamique BDD**
 Installez le package via Composer dans votre projet Laravel client :
 
 ```bash
-composer require metrics-dash/laravel
+composer require mitantsoa1/metrics-dash-laravel
 ```
 
 ### 1. Publier la configuration (Optionnel)
@@ -53,6 +53,7 @@ METRICSDASH_SDK_KEY=votre_cle_sdk_client
 ## 🖥️ Utilisation de l'Interface de Mappage (`/metrics-dash`)
 
 1. Accédez à l'URL d'administration de votre application backend :
+
    ```
    http://votre-domaine-backend/metrics-dash
    ```
