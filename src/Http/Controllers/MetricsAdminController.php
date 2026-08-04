@@ -105,4 +105,16 @@ class MetricsAdminController extends Controller
             'result' => $res,
         ]);
     }
+
+    /**
+     * API Proxy Intermédiaire : Calcule et renvoie les métriques analytiques calculées en temps réel.
+     */
+    public function getAnalyticsMetrics(Request $request)
+    {
+        $mapping = config('metrics-dash.mapping', []);
+        $payload = $this->mappingService->getAnalyticsPayload($mapping);
+
+        return response()->json($payload);
+    }
 }
+
