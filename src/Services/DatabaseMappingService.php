@@ -66,11 +66,21 @@ class DatabaseMappingService
             );
         }
 
-        // Filtre de statut valide si spécifié
+        // Filtre de statut valide si spécifié (supporte plusieurs valeurs séparées par des virgules, ex: paid, succeeded)
         $statusCol = $mapping['payments']['status'] ?? null;
         $validStatusVal = $mapping['payments']['valid_status_value'] ?? null;
-        if ($statusCol && $validStatusVal && Schema::hasColumn($payTable, $statusCol)) {
-            $query->where("{$payTable}.{$statusCol}", $validStatusVal);
+        if ($statusCol && !empty($validStatusVal) && Schema::hasColumn($payTable, $statusCol)) {
+            if (is_array($validStatusVal)) {
+                $validStatuses = array_values(array_filter(array_map('trim', $validStatusVal), fn($val) => $val !== ''));
+            } else {
+                $validStatuses = array_values(array_filter(array_map('trim', explode(',', (string) $validStatusVal)), fn($val) => $val !== ''));
+            }
+
+            if (count($validStatuses) === 1) {
+                $query->where("{$payTable}.{$statusCol}", $validStatuses[0]);
+            } elseif (count($validStatuses) > 1) {
+                $query->whereIn("{$payTable}.{$statusCol}", $validStatuses);
+            }
         }
 
         // Sélection des colonnes avec alias pour éviter tout conflit de noms (ex: id, name, created_at)

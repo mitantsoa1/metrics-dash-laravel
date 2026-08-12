@@ -24,7 +24,7 @@ return [
             'amount' => 'amount',
             'currency' => 'currency',
             'status' => 'status',
-            'valid_status_value' => 'paid',
+            'valid_status_value' => 'paid, succeeded',
             'created_at' => 'created_at',
             'foreign_user_id' => 'user_id',
             'foreign_pack_id' => 'pack_id',

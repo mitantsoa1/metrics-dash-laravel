@@ -76,8 +76,8 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1">Valeur de Statut Valide (ex: paid)</label>
-                        <input type="text" id="payValidStatus" value="paid" placeholder="paid, completed" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 outline-none">
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Valeur(s) de Statut Valide (ex: paid, succeeded)</label>
+                        <input type="text" id="payValidStatus" value="{{ $mapping['payments']['valid_status_value'] ?? 'paid, succeeded' }}" placeholder="paid, succeeded" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 outline-none">
                     </div>
 
                     <div>
@@ -207,7 +207,7 @@
             if (!tableName) return;
 
             try {
-                const res = await fetch(`/metrics-dash/api/columns?table=${tableName}`);
+                const res = await fetch(`/metrics-dash/columns?table=${tableName}`);
                 const data = await res.json();
                 
                 targetSelectIds.forEach(selectId => {
@@ -253,7 +253,7 @@
                 }
             };
 
-            const res = await fetch('/metrics-dash/api/mapping', {
+            const res = await fetch('/metrics-dash/mapping', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -291,7 +291,7 @@
         }
 
         async function triggerSync() {
-            const res = await fetch('/metrics-dash/api/sync', {
+            const res = await fetch('/metrics-dash/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });

@@ -59,7 +59,7 @@ METRICSDASH_SDK_KEY=votre_cle_sdk_client
    ```
 
 2. Sélectionnez vos 3 tables BDD réelles :
-   - **Table 1 : Paiements & Transactions** (ex: `payments`, `amount`, `currency`, `status=paid`, `user_id`, `pack_id`).
+   - **Table 1 : Paiements & Transactions** (ex: `payments`, `amount`, `currency`, `status=paid, succeeded`, `user_id`, `pack_id`).
    - **Table 2 : Packages & Abonnements** (ex: `packs`, `id`, `name`, `price`).
    - **Table 3 : Utilisateurs & Clients** (ex: `users`, `id`, `name`, `email`).
 
