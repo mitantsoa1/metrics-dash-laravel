@@ -202,6 +202,28 @@
     </div>
 
     <script>
+        // Mappage enregistré : on le réaffiche au chargement (tables, puis colonnes)
+        const savedMapping = @json($mapping);
+        const mappingGroups = [
+            { table: 'payTable', cfg: 'payments', fields: { payAmount: 'amount', payCurr: 'currency', payStatus: 'status', payDate: 'created_at', payUserKey: 'foreign_user_id', payPackKey: 'foreign_pack_id' } },
+            { table: 'packTable', cfg: 'packs', fields: { packPrimaryId: 'primary_id', packName: 'name', packPrice: 'price' } },
+            { table: 'userTable', cfg: 'users', fields: { userPrimaryId: 'primary_id', userName: 'name', userEmail: 'email' } },
+        ];
+
+        async function restoreMapping() {
+            for (const g of mappingGroups) {
+                const cfg = savedMapping[g.cfg] || {};
+                const tableEl = document.getElementById(g.table);
+                if (!cfg.table || ![...tableEl.options].some(o => o.value === cfg.table)) continue;
+                tableEl.value = cfg.table;
+                await loadColumns(g.table, Object.keys(g.fields));
+                for (const [id, field] of Object.entries(g.fields)) {
+                    if (cfg[field]) document.getElementById(id).value = cfg[field];
+                }
+            }
+        }
+        document.addEventListener('DOMContentLoaded', restoreMapping);
+
         async function loadColumns(tableSelectId, targetSelectIds) {
             const tableName = document.getElementById(tableSelectId).value;
             if (!tableName) return;

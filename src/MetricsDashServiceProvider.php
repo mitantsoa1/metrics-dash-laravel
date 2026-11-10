@@ -11,6 +11,13 @@ class MetricsDashServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Le mappage enregistré depuis /metrics-dash l'emporte sur les valeurs par défaut de la config
+        // (utilisé par l'interface, la commande metrics-dash:sync et les métriques).
+        $saved = $this->app->make(\MetricsDash\Laravel\Services\MappingStore::class)->load();
+        if ($saved !== []) {
+            config(['metrics-dash.mapping' => array_replace_recursive(config('metrics-dash.mapping', []), $saved)]);
+        }
+
         // Enregistrement des routes web /metrics-dash
         $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
 

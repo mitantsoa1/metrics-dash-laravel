@@ -85,6 +85,87 @@ Schedule::command('metrics-dash:sync')->hourly();
 
 ---
 
+## 🧭 Guide d'installation pas à pas (site à tracker)
+
+### 1. Prérequis
+
+- Laravel 11, 12 ou 13, PHP 8.2 ou plus.
+- Une instance créée dans MetricsDash pour ce site. Demandez à un OWNER ou ADMIN la **clé privée** `sk_live_…` (affichée une seule fois à la création) et, si le frontend est aussi suivi, la clé publique `pk_live_…`.
+- L'URL publique du backend MetricsDash.
+- Des tables existantes pour les paiements, les offres et les utilisateurs.
+
+### 2. Installer
+
+```bash
+composer require mitantsoa1/metrics-dash-laravel
+php artisan vendor:publish --tag=metrics-dash-config
+```
+
+Si le package n'est pas sur Packagist, ajoutez dans le `composer.json` du site :
+
+```json
+"repositories": [{ "type": "path", "url": "../chemin/vers/packages/metrics-dash-laravel" }]
+```
+
+### 3. Configurer le `.env`
+
+```env
+METRICSDASH_API_URL=https://api.votre-metricsdash.com
+METRICSDASH_PUSH_KEY=sk_live_votre_cle_privee
+METRICSDASH_SDK_KEY=pk_live_votre_cle_publique
+```
+
+Ne commitez jamais ces valeurs. Après modification : `php artisan config:clear`.
+
+### 4. Protéger l'interface `/metrics-dash`
+
+Les routes du package ne contiennent pas d'authentification. Avant la mise en production, limitez l'accès : réseau privé, liste d'IP, ou middleware d'authentification de votre site appliqué à ces routes. Ne l'exposez pas publiquement.
+
+### 5. Mapper les tables
+
+1. Ouvrez `https://votre-site/metrics-dash`.
+2. Choisissez la table des paiements (montant, devise, statut, valeurs de statut valides comme `paid, succeeded`, clés vers l'utilisateur et l'offre).
+3. Choisissez la table des offres (identifiant, nom, prix) et celle des utilisateurs (identifiant, nom, e-mail).
+4. Cliquez sur « Sauvegarder & Prévisualiser » et contrôlez les chiffres.
+
+Le mappage est enregistré dans `storage/app/metrics-dash/mapping.json` (chemin modifiable avec la clé `mapping_file` de `config/metrics-dash.php`). Il est relu à chaque chargement de `/metrics-dash` et par `metrics-dash:sync`. Pour revenir aux valeurs par défaut, supprimez ce fichier. Le dossier `storage/app` n'est pas versionné : refaites le mappage sur chaque environnement.
+
+### 6. Synchroniser
+
+Test manuel :
+
+```bash
+php artisan metrics-dash:sync
+```
+
+La commande affiche le nombre de transactions extraites et transmises. Les deux nombres doivent être égaux.
+
+Automatisation dans `routes/console.php` :
+
+```php
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('metrics-dash:sync')->hourly();
+```
+
+Le site doit lancer son scheduler chaque minute : `* * * * * cd /chemin/site && php artisan schedule:run`.
+
+### 7. Vérifier
+
+Dans le tableau de bord MetricsDash, choisissez l'instance et la période : les ventes apparaissent sous 10 minutes.
+
+### 8. Dépannage
+
+| Symptôme | Cause probable | Action |
+| --- | --- | --- |
+| « Aucune table de paiement configurée » | Mappage non fait | Ouvrir `/metrics-dash` |
+| 0 transaction extraite | Mauvais statut valide ou table vide | Vérifier les valeurs de statut du mappage |
+| Extraites mais 0 transmise | Clé privée ou URL erronée, réseau bloqué | Vérifier `METRICSDASH_PUSH_KEY`, `METRICSDASH_API_URL` et le journal `storage/logs/laravel.log` |
+| Configuration ignorée | Cache de config | `php artisan config:clear` |
+| Transactions envoyées plusieurs fois | Synchronisation relancée | Contrôler les doublons dans MetricsDash avant d'augmenter la fréquence |
+
+---
+
 ## 🧪 Tests
 
 ```bash

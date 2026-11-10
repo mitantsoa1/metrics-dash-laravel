@@ -5,6 +5,7 @@ namespace MetricsDash\Laravel\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use MetricsDash\Laravel\Services\DatabaseMappingService;
+use MetricsDash\Laravel\Services\MappingStore;
 
 class MetricsAdminController extends Controller
 {
@@ -79,6 +80,10 @@ class MetricsAdminController extends Controller
             'users.name' => 'nullable|string',
             'users.email' => 'nullable|string',
         ]);
+
+        // Conserver le mappage (rechargement de page, commande metrics-dash:sync)
+        app(MappingStore::class)->save($data);
+        config(['metrics-dash.mapping' => array_replace_recursive(config('metrics-dash.mapping', []), $data)]);
 
         // Prévisualiser les transactions extraites
         $preview = $this->mappingService->extractMappedTransactions($data);
