@@ -67,13 +67,71 @@ METRICSDASH_SDK_KEY=votre_cle_sdk_client
 
 ---
 
+## 💸 Envoi d'une commande dès son paiement (recommandé)
+
+Ne lancez pas `metrics-dash:sync` à la main après chaque paiement : appelez le package au moment où la commande passe à « payée ». L'envoi est immédiat et ne concerne que cette commande.
+
+```php
+use MetricsDash\Laravel\MetricsDash;
+
+// $order->id = identifiant de la ligne de la table des paiements mappée
+$result = MetricsDash::trackOrder($order->id);
+```
+
+`trackOrder` ne lève jamais d'exception et renvoie :
+
+| Constante | Sens | À réessayer ? |
+| --- | --- | --- |
+| `MetricsDash::SENT` | envoyée | non |
+| `MetricsDash::ALREADY_SENT` | déjà transmise (rejeu de webhook) | non |
+| `MetricsDash::NOT_FOUND` | commande absente ou pas au statut valide du mappage | non |
+| `MetricsDash::NOT_CONFIGURED` | pas de `METRICSDASH_PUSH_KEY` ou pas de table de paiements | non |
+| `MetricsDash::FAILED` | serveur injoignable ou refus | **oui** |
+
+Faites l'appel dans une tâche en file avec reprises, pour qu'une panne de MetricsDash ne bloque pas le paiement :
+
+```php
+class SendOrderToMetricsDash implements ShouldQueue
+{
+    use Queueable;
+
+    public int $tries = 6;
+    public array $backoff = [10, 60, 300, 900, 3600];
+
+    public function __construct(public string $orderId) {}
+
+    public function handle(): void
+    {
+        if (MetricsDash::trackOrder($this->orderId) === MetricsDash::FAILED) {
+            throw new \RuntimeException("MetricsDash n'a pas accepté la commande {$this->orderId}.");
+        }
+    }
+}
+
+// à l'endroit où la commande devient payée, une fois la transaction validée :
+SendOrderToMetricsDash::dispatch($order->id)->afterCommit();
+```
+
+Le package garde la liste des commandes déjà transmises dans `storage/app/metrics-dash/sent-orders.json` (clé `sent_orders_file` de `config/metrics-dash.php` pour changer le chemin). Une commande n'est donc jamais envoyée deux fois, ni par un rejeu, ni par `metrics-dash:sync`.
+
+---
+
 ## ⚡ Synchronisation Planifiée (Cron / Scheduler)
+
+La synchronisation en bloc sert de filet de sécurité et de rattrapage : elle n'envoie que les commandes **pas encore transmises**.
 
 Vous pouvez exécuter la synchronisation des données financières en tâche de fond via la commande Artisan :
 
 ```bash
 php artisan metrics-dash:sync
 ```
+
+Options :
+
+| Option | Effet |
+| --- | --- |
+| `--force` | renvoie aussi les commandes déjà transmises (crée des doublons côté MetricsDash) |
+| `--mark-sent` | marque les commandes actuelles comme transmises sans rien envoyer (à lancer une fois si elles l'ont déjà été avant cette version) |
 
 Ou l'ajouter dans `app/Console/Kernel.php` ou `routes/console.php` :
 

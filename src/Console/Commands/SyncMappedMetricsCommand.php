@@ -12,7 +12,9 @@ class SyncMappedMetricsCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'metrics-dash:sync';
+    protected $signature = 'metrics-dash:sync
+        {--force : Renvoyer aussi les commandes déjà transmises}
+        {--mark-sent : Marquer les commandes comme déjà transmises, sans rien envoyer}';
 
     /**
      * The console command description.
@@ -35,14 +37,15 @@ class SyncMappedMetricsCommand extends Command
             return self::FAILURE;
         }
 
-        $result = $mappingService->syncToMetricsDash($mapping);
+        $result = $mappingService->syncToMetricsDash($mapping, (bool) $this->option('force'), (bool) $this->option('mark-sent'));
 
         $this->info("✅ Synchronisation terminée !");
         $this->table(
             ['Métrique', 'Valeur'],
             [
                 ['Total transactions extraites', $result['total_extracted'] ?? 0],
-                ['Transactions transmises avec succès', $result['synced_count'] ?? 0],
+                [$this->option('mark-sent') ? 'Transactions marquées comme envoyées' : 'Transactions transmises avec succès', $result['synced_count'] ?? 0],
+                ['Déjà transmises (ignorées)', $result['skipped_count'] ?? 0],
             ]
         );
 

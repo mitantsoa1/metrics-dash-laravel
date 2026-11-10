@@ -2,6 +2,7 @@
 
 namespace MetricsDash\Laravel\Services;
 
+use MetricsDash\Laravel\MetricsDash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Http;
@@ -34,7 +35,7 @@ class DatabaseMappingService
     /**
      * Extrait les transactions financières jointes (Payments + Packs + Users) d'après le mappage configuré.
      */
-    public function extractMappedTransactions(array $mapping): array
+    public function extractMappedTransactions(array $mapping, string|int|null $onlyPaymentId = null): array
     {
         $payTable = $mapping['payments']['table'] ?? null;
         $packTable = $mapping['packs']['table'] ?? null;
@@ -83,10 +84,16 @@ class DatabaseMappingService
             }
         }
 
+        $primaryPayCol = $mapping['payments']['primary_id'] ?? 'id';
+
+        // Une seule commande (envoi dès le paiement)
+        if ($onlyPaymentId !== null) {
+            $query->where("{$payTable}.{$primaryPayCol}", $onlyPaymentId);
+        }
+
         // Sélection des colonnes avec alias pour éviter tout conflit de noms (ex: id, name, created_at)
         $selects = ["{$payTable}.*"];
 
-        $primaryPayCol = $mapping['payments']['primary_id'] ?? 'id';
         if (Schema::hasColumn($payTable, $primaryPayCol)) {
             $selects[] = "{$payTable}.{$primaryPayCol} as _pay_id";
         }
@@ -164,26 +171,35 @@ class DatabaseMappingService
 
 
     /**
-     * Extrait et envoie les transactions mappées à l'API MetricsDash Core.
+     * Envoie à MetricsDash les commandes pas encore transmises (celles déjà envoyées sont
+     * ignorées, sauf $force). $markOnly les marque comme envoyées sans rien transmettre
+     * (reprise après des synchronisations faites avant l'existence de ce registre).
+     *
+     * @return array{total_extracted: int, synced_count: int, skipped_count: int}
      */
-    public function syncToMetricsDash(array $mapping): array
+    public function syncToMetricsDash(array $mapping, bool $force = false, bool $markOnly = false): array
     {
-        $apiUrl = config('metrics-dash.api_url', 'http://localhost:8000') . '/api/v1/telemetry/push';
-        $pushKey = config('metrics-dash.push_key');
-
+        $sent = app(SentOrdersStore::class);
         $transactions = $this->extractMappedTransactions($mapping);
 
         $successCount = 0;
+        $skipped = 0;
+        $done = [];
         foreach ($transactions as $tx) {
-            try {
-                $res = Http::withHeaders([
-                    'X-Push-Secret-Key' => $pushKey,
-                ])->post($apiUrl, [
-                    'eventName' => 'order_completed',
-                    'eventData' => $tx,
-                ]);
+            if (! $force && $sent->has($tx['orderId'])) {
+                $skipped++;
+                continue;
+            }
 
-                if ($res->successful()) {
+            if ($markOnly) {
+                $done[] = $tx['orderId'];
+                $successCount++;
+                continue;
+            }
+
+            try {
+                if ($this->pushTransaction($tx)) {
+                    $done[] = $tx['orderId'];
                     $successCount++;
                 }
             } catch (\Throwable $e) {
@@ -191,10 +207,51 @@ class DatabaseMappingService
             }
         }
 
+        $sent->mark(...$done);
+
         return [
             'total_extracted' => count($transactions),
             'synced_count' => $successCount,
+            'skipped_count' => $skipped,
         ];
+    }
+
+    /**
+     * Envoie une seule commande (identifiant de la table des paiements mappée), sauf si elle
+     * a déjà été transmise. Renvoie l'une des constantes de MetricsDash.
+     */
+    public function trackOrder(string|int $paymentId): string
+    {
+        $tx = $this->extractMappedTransactions(config('metrics-dash.mapping', []), $paymentId)[0] ?? null;
+        if ($tx === null) {
+            return MetricsDash::NOT_FOUND;
+        }
+
+        $sent = app(SentOrdersStore::class);
+        if ($sent->has($tx['orderId'])) {
+            return MetricsDash::ALREADY_SENT;
+        }
+
+        if (! $this->pushTransaction($tx)) {
+            return MetricsDash::FAILED;
+        }
+
+        $sent->mark($tx['orderId']);
+
+        return MetricsDash::SENT;
+    }
+
+    /** POST d'une transaction vers MetricsDash Core ; true si le serveur l'a acceptée. */
+    private function pushTransaction(array $tx): bool
+    {
+        $res = Http::withHeaders([
+            'X-Push-Secret-Key' => config('metrics-dash.push_key'),
+        ])->timeout(10)->post(config('metrics-dash.api_url', 'http://localhost:8000') . '/api/v1/telemetry/push', [
+            'eventName' => 'order_completed',
+            'eventData' => $tx,
+        ]);
+
+        return $res->successful();
     }
 
     /**
